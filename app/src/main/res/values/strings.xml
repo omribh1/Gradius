@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Gradius</string>
+    <string name="title_activity_welcome">Map</string>
+    <string name="google_direction_api">AIzaSyASwezXjFfHKzeuowyyZyo_XueyCt6idQw</string>
+</resources>

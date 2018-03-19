@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "575099650583",
+    "firebase_url": "https://gradius-f9539.firebaseio.com",
+    "project_id": "gradius-f9539",
+    "storage_bucket": "gradius-f9539.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:575099650583:android:b3200dc805b47687",
+        "android_client_info": {
+          "package_name": "com.gradius.gradius"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "575099650583-nvnkj59up3tjkbtm46vg4el0tu1korok.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.gradius.gradius",
+            "certificate_hash": "ceaba8e338cbf9562efb486e4a3e4ec881e32e42"
+          }
+        },
+        {
+          "client_id": "575099650583-6gh5gpma06b5gc469t14sppk8vp6cual.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDq3ztvKeVO7RILlEJX7UP8Cax7CpqsRMA"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 2,
+          "other_platform_oauth_client": [
+            {
+              "client_id": "575099650583-6gh5gpma06b5gc469t14sppk8vp6cual.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
