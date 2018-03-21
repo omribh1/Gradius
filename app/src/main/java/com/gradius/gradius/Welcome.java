@@ -234,9 +234,10 @@ public class Welcome extends FragmentActivity implements OnMapReadyCallback,
 
     private void getDirection() {
         currentPosition = new LatLng(mLastLocation.getLatitude(),mLastLocation.getLongitude());
-
         String requestApi = null;
+        //currentPosition = new LatLng(32.6475051,35.2972223);
         try{
+
             requestApi = "https://maps.googleapis.com/maps/api/directions/json?"+
                     "mode=driving&"+
                     "transit_routing_preference=less_driving&"+
@@ -277,8 +278,8 @@ public class Welcome extends FragmentActivity implements OnMapReadyCallback,
                                 greyPolyline = mMap.addPolyline(polylineOptions);
 
                                 blackPolylineOptions = new PolylineOptions();
-                                blackPolylineOptions.color(Color.BLACK);
-                                blackPolylineOptions.width(5);
+                                blackPolylineOptions.color(Color.BLUE);
+                                blackPolylineOptions.width(15);
                                 blackPolylineOptions.startCap(new SquareCap());
                                 blackPolylineOptions.endCap(new SquareCap());
                                 blackPolylineOptions.jointType(JointType.ROUND);
@@ -468,8 +469,8 @@ public class Welcome extends FragmentActivity implements OnMapReadyCallback,
                     if(mCurrent !=null)
                         mCurrent.remove(); //remove exist marker
                     mCurrent = mMap.addMarker(new MarkerOptions()
-                            .position(new LatLng(latitude,longtitude))
-                            .title("Your Location"));
+                                                .position(new LatLng(latitude,longtitude))
+                                                .title("Your Location"));
 
                     //Move camera to this position
                     mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(latitude,longtitude),15.0f));
