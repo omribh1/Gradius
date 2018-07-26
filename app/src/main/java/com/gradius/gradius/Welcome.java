@@ -8,6 +8,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.Resources;
 import android.graphics.Color;
 import android.location.Location;
 import android.os.Handler;
@@ -34,9 +35,15 @@ import com.github.glomadrian.materialanimatedswitch.MaterialAnimatedSwitch;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesUtil;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.places.AutocompleteFilter;
+import com.google.android.gms.location.places.Place;
+import com.google.android.gms.location.places.ui.PlaceAutocomplete;
+import com.google.android.gms.location.places.ui.PlaceAutocompleteFragment;
+import com.google.android.gms.location.places.ui.PlaceSelectionListener;
 import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -48,16 +55,22 @@ import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.JointType;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
+import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.android.gms.maps.model.SquareCap;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.iid.FirebaseInstanceId;
+import com.google.maps.android.SphericalUtil;
 import com.gradius.gradius.Common.Common;
+import com.gradius.gradius.Model.Token;
 import com.gradius.gradius.Remote.IGoogleAPI;
 
 import org.json.JSONArray;
@@ -87,9 +100,9 @@ public class Welcome extends FragmentActivity implements OnMapReadyCallback,
 
     private LocationRequest mLocationRequest;
     private GoogleApiClient mGoogleApiClient;
-    private Location mLastLocation;
 
-    private static int UPDATE_INTERVAL = 5000; //5 sec
+
+    private static int UPDATE_INTERVAL = 1000; //1 sec
     private static int FATEST_INTERVAL = 3000;
     private static int DISPLACEMENT = 10;
 
@@ -109,13 +122,18 @@ public class Welcome extends FragmentActivity implements OnMapReadyCallback,
     private Handler handler;
     private LatLng startPosition,endPosition,currentPosition;
     private int index,next;
-    private Button btnGo;
-    private EditText edtPlace;
+   // private Button btnGo;
+    private PlaceAutocompleteFragment places;
+    AutocompleteFilter typeFilter;
     private String destination;
     private PolylineOptions polylineOptions,blackPolylineOptions;
     private Polyline blackPolyline,greyPolyline;
 
     private IGoogleAPI mService;
+
+
+    //Presense System
+    DatabaseReference onlineRef,currentUserRef;
 
     Runnable drawPathRunnable = new Runnable() {
         @Override
@@ -154,7 +172,7 @@ public class Welcome extends FragmentActivity implements OnMapReadyCallback,
             });
             valueAnimator.start();
             handler.postDelayed(this,3000);
-            
+
         }
     };
 
@@ -182,6 +200,24 @@ public class Welcome extends FragmentActivity implements OnMapReadyCallback,
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
 
+        //Presense System
+        onlineRef = FirebaseDatabase.getInstance().getReference().child(".info/connected");
+        currentUserRef = FirebaseDatabase.getInstance().getReference(Common.driver_tbl)
+                .child(FirebaseAuth.getInstance().getCurrentUser().getUid());
+        onlineRef.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                //We will remove value from Driver tbl when driver disconnected
+                currentUserRef.onDisconnect().removeValue();
+
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+
+            }
+        });
+
         //Init View
 
         location_switch = (MaterialAnimatedSwitch)findViewById(R.id.location_switch);
@@ -190,6 +226,8 @@ public class Welcome extends FragmentActivity implements OnMapReadyCallback,
             public void onCheckedChanged(boolean isOnline) {
                 if (isOnline)
                 {
+                    FirebaseDatabase.getInstance().goOnline();  //set connected when switch to on
+
                     startLocationUpdates();
                     displayLocation();
                     Snackbar.make(mapFragment.getView(),"You are online",Snackbar.LENGTH_SHORT)
@@ -197,6 +235,8 @@ public class Welcome extends FragmentActivity implements OnMapReadyCallback,
                 }
                 else
                 {
+                    FirebaseDatabase.getInstance().goOffline(); //set disconnect when switch to off
+
                     stopLocationUpdate();
                     mCurrent.remove();
                     mMap.clear();
@@ -208,32 +248,57 @@ public class Welcome extends FragmentActivity implements OnMapReadyCallback,
         });
 
         polyLineList = new ArrayList<>();
-        btnGo = (Button) findViewById(R.id.btnGo);
-        edtPlace = (EditText) findViewById(R.id.edtPlace);
 
-        btnGo.setOnClickListener(new View.OnClickListener(){
+        //Places API
+        typeFilter = new AutocompleteFilter.Builder()
+                .setTypeFilter(AutocompleteFilter.TYPE_FILTER_ADDRESS)
+                .setTypeFilter(3)   //administrative_area_level_3
+                .build();
+        places = (PlaceAutocompleteFragment)getFragmentManager().findFragmentById(R.id.place_autocomplete_fragment);
+        places.setOnPlaceSelectedListener(new PlaceSelectionListener() {
             @Override
-            public void onClick (View view){
-                destination = edtPlace.getText().toString();
-                destination = destination.replace(" ","+"); //replace space with + for fetch data
-                Log.d("Gradius",destination);
+            public void onPlaceSelected(Place place) {
+                if (location_switch.isChecked())
+                {
+                    destination = place.getAddress().toString();
+                    destination = destination.replace(" ", "+");
 
-                getDirection();
+                    getDirection();
+                }
+                else
+                {
+                    Toast.makeText(Welcome.this, "Please chane your status to ONLINE", Toast.LENGTH_SHORT).show();
+                }
+            }
 
+            @Override
+            public void onError(Status status) {
+                Toast.makeText(Welcome.this, ""+status.toString(), Toast.LENGTH_SHORT).show();
             }
         });
 
         //Geo Fire
-        drivers = FirebaseDatabase.getInstance().getReference("Drivers");
+        drivers = FirebaseDatabase.getInstance().getReference(Common.driver_tbl);
         geoFire = new GeoFire(drivers);
 
         setUpLocation();
 
         mService = Common.getGoogleAPI();
+
+        updateFirebaseToken();
+    }
+
+    private void updateFirebaseToken() {
+        FirebaseDatabase db = FirebaseDatabase.getInstance();
+        DatabaseReference tokens = db.getReference(Common.token_tbl);
+
+        Token token = new Token(FirebaseInstanceId.getInstance().getToken());
+        tokens.child(FirebaseAuth.getInstance().getCurrentUser().getUid())
+                    .setValue(token);
     }
 
     private void getDirection() {
-        currentPosition = new LatLng(mLastLocation.getLatitude(),mLastLocation.getLongitude());
+        currentPosition = new LatLng(Common.mLastLocation.getLatitude(),Common.mLastLocation.getLongitude());
         String requestApi = null;
         //currentPosition = new LatLng(32.6475051,35.2972223);
         try{
@@ -378,7 +443,8 @@ public class Welcome extends FragmentActivity implements OnMapReadyCallback,
                     {
                         buildGoogleApiClient();
                         createLocationRequest();
-                        displayLocation();
+                        if (location_switch.isChecked())
+                            displayLocation();
                     }
                 }
                 break;
@@ -401,7 +467,8 @@ public class Welcome extends FragmentActivity implements OnMapReadyCallback,
             {
                 buildGoogleApiClient();
                 createLocationRequest();
-                displayLocation();
+                if (location_switch.isChecked())
+                    displayLocation();
             }
         }
     }            //-----
@@ -455,29 +522,48 @@ public class Welcome extends FragmentActivity implements OnMapReadyCallback,
         {
             return;
         }
-        mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
-        if(mLastLocation !=null)
-        {
-            final double latitude = mLastLocation.getLatitude();
-            final double longtitude = mLastLocation.getLongitude();
+        Common.mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+        if(Common.mLastLocation !=null) {
+            if (location_switch.isChecked()) {
+                final double latitude = Common.mLastLocation.getLatitude();
+                final double longitude = Common.mLastLocation.getLongitude();
 
-            //Update to firebase
-            geoFire.setLocation(FirebaseAuth.getInstance().getCurrentUser().getUid(), new GeoLocation(latitude, longtitude), new GeoFire.CompletionListener() {
-                @Override
-                public void onComplete(String key, DatabaseError error) {
-                    //Add Marker
-                    if(mCurrent !=null)
-                        mCurrent.remove(); //remove exist marker
-                    mCurrent = mMap.addMarker(new MarkerOptions()
-                                                .position(new LatLng(latitude,longtitude))
-                                                .title("Your Location"));
 
-                    //Move camera to this position
-                    mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(latitude,longtitude),15.0f));
-                    //Draw animation rotate marker      //------For Tests-------
-                    //rotateMarker(mCurrent,-360,mMap); //------For Tests-------
-                }
-            });
+                LatLng center = new LatLng(latitude,longitude);
+                LatLng northSide = SphericalUtil.computeOffset(center,100000,0);
+                LatLng southSide = SphericalUtil.computeOffset(center,100000,108);
+
+                LatLngBounds bounds = LatLngBounds.builder()
+                        .include(northSide)
+                        .include(southSide)
+                        .build();
+
+                places.setBoundsBias(bounds);
+                places.setFilter(typeFilter);
+
+
+                //Update to firebase
+                geoFire.setLocation(FirebaseAuth.getInstance().getCurrentUser().getUid(), new GeoLocation(latitude, longitude), new GeoFire.CompletionListener() {
+                    @Override
+                    public void onComplete(String key, DatabaseError error) {
+                    //    @Override
+                    //    public void onComplete (String key, DatabaseError error){
+                            //Add Marker
+                            if (mCurrent != null)
+                                mCurrent.remove(); //remove exist marker
+                            mCurrent = mMap.addMarker(new MarkerOptions()
+                                    .position(new LatLng(latitude, longitude))
+                                    .icon(BitmapDescriptorFactory.fromResource(R.drawable.pink_map_pins))
+                                    .title("Your Location"));
+
+                            //Move camera to this position
+                            mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(latitude, longitude), 15.0f)); //15f is the zoom volume
+                            //Draw animation rotate marker      //------For Tests-------
+                            //rotateMarker(mCurrent,-360,mMap); //------For Tests-------
+                     //   }
+                    }
+                });
+            }
         }
         else
         {
@@ -519,6 +605,20 @@ public class Welcome extends FragmentActivity implements OnMapReadyCallback,
 
     @Override
     public void onMapReady(GoogleMap googleMap) {
+
+        //Map style
+        try {
+            boolean isSuccess = googleMap.setMapStyle(
+                    MapStyleOptions.loadRawResourceStyle(this,R.raw.my_map_style)
+            );
+            if (!isSuccess)
+                Log.e("ERROR","Map style load failed !!!");
+        }
+        catch (Resources.NotFoundException ex)
+        {
+            ex.printStackTrace();
+        }
+
         mMap = googleMap;
         mMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
         mMap.setTrafficEnabled(false);
@@ -589,7 +689,7 @@ public class Welcome extends FragmentActivity implements OnMapReadyCallback,
 
     @Override
     public void onLocationChanged(Location location) {
-        mLastLocation = location;
+        Common.mLastLocation = location;
         displayLocation();
     }   //-----
 

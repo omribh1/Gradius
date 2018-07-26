@@ -1,5 +1,12 @@
 package com.gradius.gradius;
 
+
+//DataBase Rules
+//Drivers => Table store info about Location of Driver available =>Common.driver_tbl
+//PickupRequest => Table store info about Pickup Request of User =>Common.PickupRequest
+//Rider => Table store info about User who register from Rider app =>Common.user_rider_tbl
+//Users => Table store info about Driver who register from Driver app =>Common.user_driver_tbl
+
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -18,8 +25,12 @@ import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
+import com.gradius.gradius.Common.Common;
 import com.gradius.gradius.Model.User;
 import com.rengwuxian.materialedittext.MaterialEditText;
 
@@ -56,7 +67,7 @@ public class MainActivity extends AppCompatActivity {
         //Init Firebase
         auth = FirebaseAuth.getInstance();
         db = FirebaseDatabase.getInstance();
-        users = db.getReference("Users");
+        users = db.getReference(Common.user_driver_tbl);
 
         //Init View
         btnRegister = (Button)findViewById(R.id.btnRegister);
@@ -132,15 +143,30 @@ public class MainActivity extends AppCompatActivity {
                                 .addOnSuccessListener(new OnSuccessListener<AuthResult>() {
                                     @Override
                                     public void onSuccess(AuthResult authResult) {
-                                        waitingDialog.dismiss();  //loding bar
+                                        waitingDialog.dismiss();  //loading bar
+
+                                        FirebaseDatabase.getInstance().getReference(Common.user_driver_tbl)
+                                                .child(FirebaseAuth.getInstance().getCurrentUser().getUid())
+                                                .addListenerForSingleValueEvent(new ValueEventListener() {
+                                                    @Override
+                                                    public void onDataChange(DataSnapshot dataSnapshot) {
+                                                        Common.currentUser = dataSnapshot.getValue(User.class);
+                                                    }
+
+                                                    @Override
+                                                    public void onCancelled(DatabaseError databaseError) {
+
+                                                    }
+                                                });
+
                                         startActivity(new Intent(MainActivity.this, Welcome.class));
                                         finish();
                                     }
                                 }).addOnFailureListener(new OnFailureListener() {
                             @Override
                             public void onFailure(@NonNull Exception e) {
-                                waitingDialog.dismiss(); //loding bar
-                                Snackbar.make(rootLayout, "Failed" + e.getMessage(), Snackbar.LENGTH_LONG)
+                                waitingDialog.dismiss(); //loading bar
+                                Snackbar.make(rootLayout, "Failed " + e.getMessage(), Snackbar.LENGTH_LONG)
                                         .show();
 
                                 //Active button
@@ -236,7 +262,7 @@ public class MainActivity extends AppCompatActivity {
                                         .addOnFailureListener(new OnFailureListener() {
                                             @Override
                                             public void onFailure(@NonNull Exception e) {
-                                                Snackbar.make(rootLayout, "Faild" + e.getMessage(), Snackbar.LENGTH_LONG)
+                                                Snackbar.make(rootLayout, "Failed " + e.getMessage(), Snackbar.LENGTH_LONG)
                                                         .show();
                                             }
                                         });
@@ -246,7 +272,7 @@ public class MainActivity extends AppCompatActivity {
                         .addOnFailureListener(new OnFailureListener() {
                             @Override
                             public void onFailure(@NonNull Exception e) {
-                                Snackbar.make(rootLayout, "Faild" + e.getMessage(), Snackbar.LENGTH_LONG)
+                                Snackbar.make(rootLayout, "Failed " + e.getMessage(), Snackbar.LENGTH_LONG)
                                         .show();
                             }
                         });
