@@ -559,7 +559,7 @@ public class Welcome extends FragmentActivity implements OnMapReadyCallback,
                             //Move camera to this position
                             mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(latitude, longitude), 15.0f)); //15f is the zoom volume
                             //Draw animation rotate marker      //------For Tests-------
-                            //rotateMarker(mCurrent,-360,mMap); //------For Tests-------
+                            //rotateMarker(mCurrent,-360,mMap); //------For Tests------
                      //   }
                     }
                 });
